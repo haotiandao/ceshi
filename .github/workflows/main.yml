@@ -1,0 +1,103 @@
+name: Refresh Website
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # 每10分钟运行一次
+
+jobs:
+  refresh-job:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Install Google Chrome
+      run: |
+        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+        echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' | sudo tee /etc/apt/sources.list.d/google-chrome.list
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+
+    - name: Determine Chrome version
+      id: chrome_version
+      run: |
+        CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
+        echo "Chrome version: $CHROME_VERSION"
+        echo "::set-output name=chrome-version::$CHROME_VERSION"
+
+    - name: Download ChromeDriver
+      id: download_chromedriver
+      run: |
+        CHROME_VERSION=${{ steps.chrome_version.outputs.chrome-version }}
+        MAJOR_VERSION=$(echo "$CHROME_VERSION" | cut -d'.' -f1)
+        wget -N https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$MAJOR_VERSION -O latest_release
+        LATEST_CHROMEDRIVER_VERSION=$(cat latest_release)
+        wget -N https://chromedriver.storage.googleapis.com/$LATEST_CHROMEDRIVER_VERSION/chromedriver_linux64.zip -P ~/
+        unzip ~/chromedriver_linux64.zip -d ~/
+
+    - name: Move ChromeDriver to PATH
+      run: |
+        sudo mv ~/chromedriver /usr/local/bin/
+        sudo chmod +x /usr/local/bin/chromedriver
+
+    - name: Verify Chrome installation
+      run: google-chrome --version
+
+    - name: Verify ChromeDriver installation
+      run: chromedriver --version
+
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.9'
+
+    - name: Install Selenium
+      run: pip install selenium
+
+    - name: Create and Run Refresh Script
+      run: |
+        cat <<EOF > refresh.py
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import WebDriverException
+
+# Configure Chrome options for headless mode
+chrome_options = Options()
+chrome_options.add_argument("--headless")
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
+
+# Initialize the Chrome WebDriver
+try:
+    service = Service('/usr/local/bin/chromedriver')
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+except WebDriverException as e:
+    print(f"Failed to initialize WebDriver: {e}")
+    exit(1)
+
+# URL to open
+url = "https://www.example.com"
+
+try:
+    driver.get(url)
+    print(f"Opened page at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # Refresh the page 5 times
+    for i in range(5):
+        driver.refresh()
+        print(f"Refreshed page {i+1} at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        time.sleep(2)  # Wait for 2 seconds between refreshes
+except WebDriverException as e:
+    print(f"Failed to load or refresh page: {e}")
+finally:
+    driver.quit()
+EOF
+
+        # Run the script
+        python refresh.py
+
+
+
