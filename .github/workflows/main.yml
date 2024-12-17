@@ -1,51 +1,53 @@
-name: Refresh Website
+name: Open Website with Edge
 
 on:
   schedule:
     - cron: '*/10 * * * *'  # 每10分钟运行一次
 
 jobs:
-  refresh-job:
+  open-website-job:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Install Google Chrome
+    - name: Install Microsoft Edge
       run: |
-        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-        echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' | sudo tee /etc/apt/sources.list.d/google-chrome.list
+        curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg
+        sudo install -o root -g root -m 644 microsoft.gpg /etc/apt/trusted.gpg.d/
+        sudo sh -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/edge stable main" > /etc/apt/sources.list.d/microsoft-edge-dev.list'
+        rm microsoft.gpg
         sudo apt-get update
-        sudo apt-get install -y google-chrome-stable
+        sudo apt-get install -y microsoft-edge-stable
 
-    - name: Determine Chrome version
-      id: chrome_version
+    - name: Determine Edge version
+      id: edge_version
       run: |
-        CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
-        echo "Chrome version: $CHROME_VERSION"
-        echo "::set-output name=chrome-version::$CHROME_VERSION"
+        EDGE_VERSION=$(microsoft-edge --version | grep -oP '\d+\.\d+\.\d+\.\d+')
+        echo "Edge version: $EDGE_VERSION"
+        echo "::set-output name=edge-version::$EDGE_VERSION"
 
-    - name: Download ChromeDriver
-      id: download_chromedriver
+    - name: Download EdgeDriver
+      id: download_edgedriver
       run: |
-        CHROME_VERSION=${{ steps.chrome_version.outputs.chrome-version }}
-        MAJOR_VERSION=$(echo "$CHROME_VERSION" | cut -d'.' -f1)
-        wget -N https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$MAJOR_VERSION -O latest_release
-        LATEST_CHROMEDRIVER_VERSION=$(cat latest_release)
-        wget -N https://chromedriver.storage.googleapis.com/$LATEST_CHROMEDRIVER_VERSION/chromedriver_linux64.zip -P ~/
-        unzip ~/chromedriver_linux64.zip -d ~/
+        EDGE_VERSION=${{ steps.edge_version.outputs.edge-version }}
+        MAJOR_VERSION=$(echo "$EDGE_VERSION" | cut -d'.' -f1)
+        wget -N https://msedgedriver.azureedge.net/LATEST_RELEASE_${MAJOR_VERSION} -O latest_release
+        LATEST_EDGEDRIVER_VERSION=$(cat latest_release)
+        wget -N https://msedgedriver.azureedge.net/${LATEST_EDGEDRIVER_VERSION}/edgedriver_linux64.zip -P ~/
+        unzip ~/edgedriver_linux64.zip -d ~/
 
-    - name: Move ChromeDriver to PATH
+    - name: Move EdgeDriver to PATH
       run: |
-        sudo mv ~/chromedriver /usr/local/bin/
-        sudo chmod +x /usr/local/bin/chromedriver
+        sudo mv ~/msedgedriver /usr/local/bin/
+        sudo chmod +x /usr/local/bin/msedgedriver
 
-    - name: Verify Chrome installation
-      run: google-chrome --version
+    - name: Verify Edge installation
+      run: microsoft-edge --version
 
-    - name: Verify ChromeDriver installation
-      run: chromedriver --version
+    - name: Verify EdgeDriver installation
+      run: msedgedriver --version
 
     - name: Set up Python
       uses: actions/setup-python@v3
@@ -55,25 +57,25 @@ jobs:
     - name: Install Selenium
       run: pip install selenium
 
-    - name: Create and Run Refresh Script
+    - name: Create and Run Open Website Script
       run: |
-        cat <<EOF > refresh.py
+        cat <<EOF > open_website.py
 import time
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.edge.service import Service
+from selenium.webdriver.edge.options import Options
 from selenium.common.exceptions import WebDriverException
 
-# Configure Chrome options for headless mode
-chrome_options = Options()
-chrome_options.add_argument("--headless")
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
+# Configure Edge options for headless mode
+edge_options = Options()
+edge_options.add_argument("--headless")
+edge_options.add_argument("--no-sandbox")
+edge_options.add_argument("--disable-dev-shm-usage")
 
-# Initialize the Chrome WebDriver
+# Initialize the Edge WebDriver
 try:
-    service = Service('/usr/local/bin/chromedriver')
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    service = Service('/usr/local/bin/msedgedriver')
+    driver = webdriver.Edge(service=service, options=edge_options)
 except WebDriverException as e:
     print(f"Failed to initialize WebDriver: {e}")
     exit(1)
@@ -84,20 +86,15 @@ url = "https://www.example.com"
 try:
     driver.get(url)
     print(f"Opened page at {time.strftime('%Y-%m-%d %H:%M:%S')}")
-
-    # Refresh the page 5 times
-    for i in range(5):
-        driver.refresh()
-        print(f"Refreshed page {i+1} at {time.strftime('%Y-%m-%d %H:%M:%S')}")
-        time.sleep(2)  # Wait for 2 seconds between refreshes
+    time.sleep(5)  # Wait for 5 seconds before closing the browser
 except WebDriverException as e:
-    print(f"Failed to load or refresh page: {e}")
+    print(f"Failed to load page: {e}")
 finally:
     driver.quit()
 EOF
 
         # Run the script
-        python refresh.py
+        python open_website.py
 
 
 
