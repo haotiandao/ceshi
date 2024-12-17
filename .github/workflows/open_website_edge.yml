@@ -1,90 +1,35 @@
-name: Open Website with Edge
-
-
-
-    - name: Set up Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: '3.9'
-
-    - name: Install Microsoft Edge
-      run: |
-        curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg
-        sudo install -o root -g root -m 644 microsoft.gpg /etc/apt/trusted.gpg.d/
-        sudo sh -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/edge stable main" > /etc/apt/sources.list.d/microsoft-edge-dev.list'
-        rm microsoft.gpg
-        sudo apt-get update
-        sudo apt-get install -y microsoft-edge-stable
-
-    - name: Determine Edge version
-      id: edge_version
-      run: |
-        EDGE_VERSION=$(microsoft-edge --version | grep -oP '\d+\.\d+\.\d+\.\d+')
-        echo "Edge version: $EDGE_VERSION"
-        echo "::set-output name=edge-version::$EDGE_VERSION"
-
-    - name: Download EdgeDriver
-      id: download_edgedriver
-      run: |
-        EDGE_VERSION=${{ steps.edge_version.outputs.edge-version }}
-        MAJOR_VERSION=$(echo "$EDGE_VERSION" | cut -d'.' -f1)
-        wget -N https://msedgedriver.azureedge.net/LATEST_RELEASE_${MAJOR_VERSION} -O latest_release
-        LATEST_EDGEDRIVER_VERSION=$(cat latest_release)
-        wget -N https://msedgedriver.azureedge.net/${LATEST_EDGEDRIVER_VERSION}/edgedriver_linux64.zip -P ~/
-        unzip ~/edgedriver_linux64.zip -d ~/
-
-    - name: Move EdgeDriver to PATH
-      run: |
-        sudo mv ~/msedgedriver /usr/local/bin/
-        sudo chmod +x /usr/local/bin/msedgedriver
-
-    - name: Verify Edge installation
-      run: microsoft-edge --version
-
-    - name: Verify EdgeDriver installation
-      run: msedgedriver --version
-
-    - name: Install Selenium
-      run: pip install selenium
-
-    - name: Create and Run Open Website Script
-      run: |
-        cat <<EOF > open_website.py
+import urllib.request
+import requests
 import time
-from selenium import webdriver
-from selenium.webdriver.edge.service import Service
-from selenium.webdriver.edge.options import Options
-from selenium.common.exceptions import WebDriverException
+import ssl
+import random
+ 
+def openUrl(ip, agent):
+ headers = {'User-Agent': agent}
+ proxies = {'http' : ip}
+ ######################################################################################################################
+ requests.get("https://www.baidu.com", headers=headers, proxies=proxies, verify=True)
+ requests.get("https://www.baidu.com", headers=headers, proxies=proxies, verify=True)
+ ########################################################################################################################
+ ssl._create_default_https_context = ssl._create_unverified_context
+ print("Access to success.")
+ 
 
-# Configure Edge options for headless mode
-edge_options = Options()
-edge_options.add_argument("--headless")
-edge_options.add_argument("--no-sandbox")
-edge_options.add_argument("--disable-dev-shm-usage")
-
-# Initialize the Edge WebDriver
-try:
-    service = Service('/usr/local/bin/msedgedriver')
-    driver = webdriver.Edge(service=service, options=edge_options)
-except WebDriverException as e:
-    print(f"Failed to initialize WebDriver: {e}")
-    exit(1)
-
-# URL to open
-url = "https://www.example.com"
-
-try:
-    driver.get(url)
-    print(f"Opened page at {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    time.sleep(5)  # Wait for 5 seconds before closing the browser
-except WebDriverException as e:
-    print(f"Failed to load page: {e}")
-finally:
-    driver.quit()
-EOF
-
-        # Run the script
-        python open_website.py
-
-
-
+def randomIP():
+ ip = random.choice(['120.78.78.141', '122.72.18.35', '120.92.119.229'])
+ return ip
+ 
+#User-Agent
+#User-Agent来源：http://www.useragentstring.com/pages/useragentstring.php
+def randomUserAgent():
+ UserAgent = random.choice(['Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2227.0 Safari/537.36'])
+ return UserAgent
+ 
+if __name__ == '__main__':
+  for i in range(60):
+      ip = randomIP()
+      agent = randomUserAgent()
+      openUrl(ip, agent)
+      time.sleep(60)
