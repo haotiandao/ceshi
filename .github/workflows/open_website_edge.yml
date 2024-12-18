@@ -1,35 +1,102 @@
-import urllib.request
-import requests
-import time
-import ssl
-import random
- 
-def openUrl(ip, agent):
- headers = {'User-Agent': agent}
- proxies = {'http' : ip}
- ######################################################################################################################
- requests.get("https://www.baidu.com", headers=headers, proxies=proxies, verify=True)
- requests.get("https://www.baidu.com", headers=headers, proxies=proxies, verify=True)
- ########################################################################################################################
- ssl._create_default_https_context = ssl._create_unverified_context
- print("Access to success.")
- 
+name: Open Baidu with Chrome and Selenium
 
-def randomIP():
- ip = random.choice(['120.78.78.141', '122.72.18.35', '120.92.119.229'])
- return ip
- 
-#User-Agent
-#User-Agent来源：http://www.useragentstring.com/pages/useragentstring.php
-def randomUserAgent():
- UserAgent = random.choice(['Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36',
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2227.0 Safari/537.36'])
- return UserAgent
- 
-if __name__ == '__main__':
-  for i in range(60):
-      ip = randomIP()
-      agent = randomUserAgent()
-      openUrl(ip, agent)
-      time.sleep(60)
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  open-baidu:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Google Chrome
+        run: |
+          # Update package lists
+          sudo apt-get update
+          
+          # Install dependencies
+          sudo apt-get install -y wget gnupg
+          
+          # Add Google Chrome's official repository
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          
+          # Update package lists again
+          sudo apt-get update
+          
+          # Install Google Chrome
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Set up ChromeDriver
+        run: |
+          # Determine the latest version of Chrome installed
+          CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
+          echo "Installed Chrome version: $CHROME_VERSION"
+          
+          # Extract major version number
+          MAJOR_VERSION=$(echo "$CHROME_VERSION" | cut -d'.' -f1)
+          echo "Major Chrome version: $MAJOR_VERSION"
+          
+          # Download the corresponding ChromeDriver
+          wget -N https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$MAJOR_VERSION -O /tmp/chromedriver_version
+          CHROMEDRIVER_VERSION=$(cat /tmp/chromedriver_version)
+          echo "Latest ChromeDriver version for Chrome $MAJOR_VERSION: $CHROMEDRIVER_VERSION"
+          
+          wget -N https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip -P ~/
+          
+          # Unzip ChromeDriver
+          unzip ~/chromedriver_linux64.zip -d ~/
+          
+          # Move ChromeDriver to PATH
+          sudo mv -f ~/chromedriver /usr/local/bin/chromedriver
+          sudo chown root:root /usr/local/bin/chromedriver
+          sudo chmod 0755 /usr/local/bin/chromedriver
+          
+          # Verify installation
+          chromedriver --version
+
+      - name: Set up Python and Selenium
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Install Selenium
+        run: |
+          pip install selenium
+
+      - name: Open Baidu
+        run: |
+          python - <<EOF
+          from selenium import webdriver
+          from selenium.webdriver.chrome.service import Service
+          from selenium.webdriver.common.by import By
+          from selenium.webdriver.chrome.options import Options
+          import time
+
+          # Set up Chrome options for headless mode
+          chrome_options = Options()
+          chrome_options.add_argument("--headless")
+          chrome_options.add_argument("--no-sandbox")
+          chrome_options.add_argument("--disable-dev-shm-usage")
+
+          # Initialize the Chrome driver
+          service = Service('/usr/local/bin/chromedriver')
+          driver = webdriver.Chrome(service=service, options=chrome_options)
+
+          # Open Baidu
+          driver.get('https://www.baidu.com')
+
+          # Print the title of the page
+          print(f"Page Title: {driver.title}")
+
+          # Wait for a few seconds
+          time.sleep(5)
+
+          # Close the browser
+          driver.quit()
+          EOF
