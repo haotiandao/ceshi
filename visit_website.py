@@ -8,7 +8,7 @@ def visit_website(url):
         print(f'访问 {url} 失败: {str(e)}')
 
 if __name__ == '__main__':
-    visit_website('http://haotiandao.github.io')
+    visit_website('http://th.ip-ddns.com')
 
 
 
