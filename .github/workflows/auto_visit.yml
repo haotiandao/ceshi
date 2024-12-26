@@ -1,4 +1,4 @@
-name: 自动访问网站
+name: visit web
 
 on:
   schedule:
